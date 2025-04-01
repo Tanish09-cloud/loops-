@@ -1,0 +1,194 @@
+import pyttsx3
+import speech_recognition as sr
+import os
+import pywhatkit as kit
+import time
+import requests
+import re
+from datetime import datetime, timedelta
+import webbrowser
+import threading
+
+# Initialize the pyttsx3 engine for voice output
+engine = pyttsx3.init()
+
+# Function to speak out text
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+# Function to listen to user commands (speech recognition)
+def listen():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Listening for your command...")
+        audio = recognizer.listen(source)
+        try:
+            command = recognizer.recognize_google(audio).lower()
+            print(f"Command received: {command}")
+        except sr.UnknownValueError:
+            speak("Sorry, I couldn't understand that.")
+            return None
+        except sr.RequestError:
+            speak("Sorry, I couldn't request results from Google.")
+            return None
+        return command
+
+# Function to tell the time
+def tell_time():
+    current_time = datetime.now().strftime("%I:%M %p")
+    speak(f"The current time is {current_time}")
+
+# Function to tell the date
+def tell_date():
+    current_date = datetime.now().strftime("%A, %B %d, %Y")
+    speak(f"Today is {current_date}")
+
+# Function to get weather information
+def get_weather():
+    api_key = "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API key}"
+    base_url = "http://api.openweathermap.org/data/2.5/weather?"
+    speak("Please tell me the city for which you want to know the weather.")
+    city = listen()
+    if city:
+        complete_url = base_url + "q=" + city + "&appid=" + api_key
+        response = requests.get(complete_url)
+        data = response.json()
+
+        if data["cod"] == 200:
+            main = data["main"]
+            weather_desc = data["weather"][0]["description"]
+            temperature = main["temp"] - 273.15  # Convert Kelvin to Celsius
+            speak(f"The temperature in {city} is {temperature:.2f} degrees Celsius with {weather_desc}.")
+        else:
+            speak(f"Sorry, I couldn't find the weather information for {city}.")
+    else:
+        speak("I didn't catch the city name.")
+
+# Function to process and evaluate math expressions
+def calculate_expression(expression):
+    try:
+        result = eval(expression)
+        speak(f"The result of {expression} is {result}")
+    except Exception as e:
+        speak("Sorry, I couldn't solve that calculation.")
+
+# Function to perform a web search
+def web_search(query):
+    webbrowser.open(f"https://www.google.com/search?q={query}")
+    speak(f"Searching for {query} on Google.")
+
+# Function to set reminders
+def set_reminder(reminder_time, reminder_message):
+    reminder_time = datetime.now() + timedelta(seconds=reminder_time)
+    time.sleep(reminder_time.timestamp() - time.time())  # Wait until the reminder time
+    speak(f"Reminder: {reminder_message}")
+
+# Function to process commands and open apps or perform actions
+def process_command(command):
+    # Personalized responses
+    if "good morning" in command:
+        speak("Good morning! Hope you have a fantastic day ahead.")
+
+    elif "good afternoon" in command:
+        speak("Good afternoon! How can I assist you?")
+
+    elif "good evening" in command:
+        speak("Good evening! Hope you had a great day.")
+
+    elif "how are you" in command:
+        speak("I'm doing great! Thanks for asking. How about you?")
+
+    elif "thank you" in command:
+        speak("You're welcome! I'm always here to help.")
+
+    elif "who are you" in command:
+        speak("I am Aura, your personal assistant. How can I assist you today?")
+
+    elif "who made you" in command:
+        speak("I was created by Tanish, who wanted to make life easier for you!")
+
+    elif "tell me a joke" in command:
+        jokes = [
+            "Why don't skeletons fight each other? Because they don't have the guts!",
+            "Why did the scarecrow win an award? Because he was outstanding in his field!",
+            "What do you call fake spaghetti? An impasta!"
+        ]
+        speak(jokes[int(time.time()) % len(jokes)])  # Picks a random joke
+
+    # Opening apps
+    elif 'open' in command:
+        if 'chrome' in command:
+            speak("Opening Google Chrome")
+            os.system("start chrome")
+        elif 'notepad' in command:
+            speak("Opening Notepad")
+            os.system("start notepad")
+        elif 'calculator' in command:
+            speak("Opening Calculator")
+            os.system("start calc")
+        elif 'firefox' in command:
+            speak("Opening Firefox")
+            os.system("start firefox")
+        elif 'word' in command or 'microsoft word' in command:
+            speak("Opening Microsoft Word")
+            os.system("start winword")
+        elif 'youtube' in command:
+            speak("Opening YouTube")
+            kit.playonyt("your search term")
+        else:
+            speak("Sorry, I couldn't find that application.")
+
+    # Performing basic calculations
+    elif 'calculate' in command or 'what is' in command:
+        expression = re.sub(r'[^\d\+\-\*\/\(\)\.\ ]', '', command)
+        calculate_expression(expression)
+
+    # Searching the web
+    elif 'search' in command or 'google' in command:
+        query = command.replace("search", "").replace("google", "").strip()
+        web_search(query)
+
+    # Setting reminders
+    elif 'remind me' in command:
+        match = re.search(r"remind me in (\d+) minutes to (.*)", command)
+        if match:
+            minutes = int(match.group(1))
+            message = match.group(2)
+            speak(f"Setting a reminder for {message} in {minutes} minutes.")
+            threading.Thread(target=set_reminder, args=(minutes * 60, message)).start()
+        else:
+            speak("Sorry, I couldn't understand the reminder.")
+
+    # Other tasks
+    elif 'shutdown' in command:
+        speak("Shutting down the system")
+        os.system("shutdown /s /f /t 1")
+
+    elif 'restart' in command:
+        speak("Restarting the system")
+        os.system("shutdown /r /f /t 1")
+
+    elif 'time' in command:
+        tell_time()
+
+    elif 'date' in command:
+        tell_date()
+
+    elif 'weather' in command:
+        get_weather()
+
+    else:
+        speak("Sorry, I don't understand that command.")
+
+# Main function to run the assistant
+def run_assistant():
+    speak("Hello, I am Aura, your personal assistant. How can I help you?")
+    while True:
+        command = listen()
+        if command:
+            process_command(command)
+        time.sleep(1)  # Small delay to avoid overloading the system
+
+# Run the assistant
+run_assistant()
